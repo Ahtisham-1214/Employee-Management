@@ -26,7 +26,11 @@ public class EmployeeServiceImplement implements EmployeeService {
 
     @Override
     public String updateEmployee(Long id, Employee employee) {
-        EmployeeEntity employeeEntity = employeeRepository.findById(id).get();
+        var optional = employeeRepository.findById(id);
+        if (optional.isEmpty()) {
+            return "Not found";
+        }
+        EmployeeEntity employeeEntity = optional.get();
         employeeEntity.setName(employee.getName());
         employeeRepository.save(employeeEntity);
         return "Updated Successfully";
@@ -34,8 +38,11 @@ public class EmployeeServiceImplement implements EmployeeService {
 
     @Override
     public boolean deleteEmployee(Long id) {
-        EmployeeEntity employeeEntity = employeeRepository.findById(id).get();
-        employeeRepository.delete(employeeEntity);
+        var optional = employeeRepository.findById(id);
+        if (optional.isEmpty()) {
+            return false;
+        }
+        employeeRepository.delete(optional.get());
         return true;
     }
 
