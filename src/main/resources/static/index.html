@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Employee Manager</title>
+    <!-- Simple setup with Tailwind for basic structure -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body { font-family: sans-serif; }</style>
+</head>
+<body class="bg-gray-100 p-8">
+
+    <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-xl">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Simple Employee Manager</h1>
+        
+        <!-- Status Message -->
+        <div id="statusMessage" class="mb-4 p-3 rounded text-sm font-medium hidden"></div>
+
+        <!-- CRUD Form -->
+        <form id="employeeForm" class="space-y-4 mb-8">
+            <input type="number" id="id" name="id" placeholder="ID (for View/Update/Delete)"
+                   class="w-full p-2 border rounded focus:ring-blue-500">
+            <input type="text" id="name" name="name" placeholder="Employee Name (for Add/Update)"
+                   class="w-full p-2 border rounded focus:ring-blue-500">
+            
+            <div class="grid grid-cols-2 gap-4">
+                <button type="button" onclick="addEmployee()" class="bg-green-600 text-white p-2 rounded hover:bg-green-700">Add</button>
+                <button type="button" onclick="updateEmployee()" class="bg-yellow-600 text-white p-2 rounded hover:bg-yellow-700">Update</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <button type="button" onclick="viewEmployee()" class="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700">View by ID</button>
+                <button type="button" onclick="deleteEmployeeBtn()" class="bg-red-600 text-white p-2 rounded hover:bg-red-700">Delete</button>
+            </div>
+        </form>
+
+        <!-- Employee List -->
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">All Employees
+            <button onclick="fetchEmployees()" class="ml-2 text-sm text-blue-600 hover:underline">Refresh</button>
+        </h2>
+        <div class="overflow-x-auto border rounded">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs text-gray-500">ID</th>
+                        <th class="px-4 py-2 text-left text-xs text-gray-500">Name</th>
+                    </tr>
+                </thead>
+                <tbody id="employeeTableBody" class="bg-white divide-y divide-gray-100">
+                    <tr><td colspan="2" class="p-4 text-center text-gray-500">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8080/employee';
+        const API_BASE_URL_ALL = 'http://localhost:8080/employees';
+        const tableBody = document.getElementById('employeeTableBody');
+        const idInput = document.getElementById('id');
+        const nameInput = document.getElementById('name');
+        const statusDiv = document.getElementById('statusMessage');
+
+        // --- Utility Functions ---
+
+        function showStatus(message, type = 'success') {
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-yellow-100', 'text-yellow-800');
+            
+            if (type === 'error') {
+                statusDiv.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                statusDiv.classList.add('bg-green-100', 'text-green-800');
+            } else { // info/warning
+                statusDiv.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+            
+            setTimeout(() => statusDiv.classList.add('hidden'), 3000);
+        }
+
+        function renderEmployees(employees) {
+            if (!employees || employees.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-gray-500">No employees found.</td></tr>';
+                return;
+            }
+            tableBody.innerHTML = employees.map(e => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm font-medium text-gray-900">${e.id}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${e.name}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function handleApiCall(url, method, data = null, successMsg, failureMsg) {
+            try {
+                const options = {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(url, options);
+
+                // Handle 404 specifically for delete/update/view
+                if (method !== 'POST' && response.status === 404) {
+                    showStatus(`Error: Employee ID ${idInput.value} not found.`, 'error');
+                    return false;
+                }
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error ${response.status}: ${errorText}`);
+                }
+                // If backend returns plain text saying Not found (legacy), treat as error
+                const text = await response.clone().text().catch(() => '');
+                if (text && text.toLowerCase().includes('not found')) {
+                    showStatus(`Error: ${text}`, 'error');
+                    return false;
+                }
+
+                showStatus(successMsg, 'success');
+                idInput.value = '';
+                nameInput.value = '';
+                fetchEmployees();
+                return true;
+
+            } catch (error) {
+                console.error('API Error:', error);
+                showStatus(failureMsg, 'error');
+                return false;
+            }
+        }
+
+        // --- CRUD Functions ---
+
+        async function fetchEmployees() {
+            tableBody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+            try {
+                const response = await fetch(API_BASE_URL_ALL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const employees = await response.json();
+                renderEmployees(employees);
+            } catch (error) {
+                console.error('Error fetching employees:', error);
+                tableBody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-red-500">Connection failed. Is the backend running?</td></tr>';
+            }
+        }
+
+        function addEmployee() {
+            const name = nameInput.value;
+            if (!name) return showStatus('Please enter a name to add.', 'warning');
+            const data = { name: name };
+            handleApiCall(API_BASE_URL, 'POST', data, 'Employee added successfully', 'Failed to add employee.');
+        }
+
+        function updateEmployee() {
+            const id = idInput.value;
+            const name = nameInput.value;
+            if (!id || !name) return showStatus('Enter both ID and Name to update.', 'warning');
+            // Note: The Spring Boot controller expects the ID in the path for PUT
+            const data = { name: name }; 
+            handleApiCall(`${API_BASE_URL}/${id}`, 'PUT', data, 'Employee updated successfully', 'Failed to update employee.');
+        }
+
+        async function viewEmployee() {
+            const id = idInput.value;
+            if (!id) return showStatus('Enter ID to view.', 'warning');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`);
+                if (response.status === 404) {
+                    showStatus(`Employee ID ${id} not found.`, 'error');
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const employee = await response.json();
+                showStatus(`Found ID: ${employee.id}, Name: ${employee.name}`, 'info');
+                nameInput.value = employee.name; // Prefill name for potential update
+            } catch (error) {
+                console.error('Error viewing employee:', error);
+                showStatus('Failed to view employee.', 'error');
+            }
+        }
+
+        function deleteEmployeeBtn() {
+            const id = idInput.value;
+            if (!id) return showStatus('Enter ID to delete.', 'warning');
+            
+            if (!window.confirm(`Are you sure you want to delete Employee ID ${id}?`)) {
+                return;
+            }
+
+            handleApiCall(`${API_BASE_URL}/${id}`, 'DELETE', null, 'Employee deleted successfully', 'Failed to delete employee.');
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchEmployees);
+
+    </script>
+</body>
+</html>
