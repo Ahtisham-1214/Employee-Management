@@ -3,6 +3,8 @@ package org.ahtisham.employee_project.controller;
 import org.ahtisham.employee_project.model.Employee;
 import org.ahtisham.employee_project.service.EmployeeService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,30 +16,38 @@ public class EmployeeController {
      EmployeeService employeeService;
 
     @GetMapping("employees")
-    public List<Employee> getEmployees() {
-        return employeeService.getEmployees();
+    public ResponseEntity<List<Employee>> getEmployees() {
+        return ResponseEntity.ok(employeeService.getEmployees());
     }
 
     @GetMapping("employee/{id}")
-    public Employee getEmployeeByID(@PathVariable Long id) {
-        return employeeService.getEmployeeById(id);
+    public ResponseEntity<Employee> getEmployeeByID(@PathVariable Long id) {
+        Employee employee = employeeService.getEmployeeById(id);
+        if (employee == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(employee);
     }
 
     @PostMapping("employee")
-    public String addEmployee(@RequestBody Employee employee) {
-     return employeeService.addEmployee(employee);
+    public ResponseEntity<String> addEmployee(@RequestBody Employee employee) {
+     return ResponseEntity.status(HttpStatus.CREATED).body(employeeService.addEmployee(employee));
     }
 
     @DeleteMapping("employee/{id}")
-    public String deleteEmployee(@PathVariable Long id) {
+    public ResponseEntity<String> deleteEmployee(@PathVariable Long id) {
         if(employeeService.deleteEmployee(id))
-            return "Employee deleted successfully";
-        return "Not found";
+            return ResponseEntity.ok("Employee deleted successfully");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Not found");
     }
 
     @PutMapping("employee/{id}")
-    public String updateEmployee(@PathVariable Long id,@RequestBody Employee employee) {
-     return employeeService.updateEmployee(id, employee);
+    public ResponseEntity<String> updateEmployee(@PathVariable Long id,@RequestBody Employee employee) {
+     String result = employeeService.updateEmployee(id, employee);
+     if ("Not found".equalsIgnoreCase(result)) {
+         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
+     }
+     return ResponseEntity.ok(result);
     }
 
 }
